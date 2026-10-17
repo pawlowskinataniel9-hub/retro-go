@@ -19,7 +19,7 @@ jobs:
     - name: Checkout repository
       uses: actions/checkout@v4
 
-    # Wymuszenie konfiguracji dla układu ESP32-S3 N16R8 przed uruchomieniem Dockera
+    # Wymuszenie konfiguracji sprzętowej specjalnie dla wersji N16R8 (16MB Flash, 8MB Octal PSRAM)
     - name: Configure for ESP32-S3 N16R8
       run: |
         echo "CONFIG_IDF_TARGET=\"esp32s3\"" >> sdkconfig.defaults
@@ -31,8 +31,11 @@ jobs:
         echo "CONFIG_ESP_SPIRAM=y" >> sdkconfig.defaults
         echo "CONFIG_SPIRAM_MODE_OCT=y" >> sdkconfig.defaults
         echo "CONFIG_SPIRAM_SPEED_120M=y" >> sdkconfig.defaults
-        # Ustawienie wybranego urządzenia w pliku konfiguracyjnym projektu
-        sed -i 's/odroid-go/esp32s3-devkit-c/g' Dockerfile 2>/dev/null || true
+        # Naprawa nazwy urządzenia w skrypcie budującym (Dockerfile)
+        if [ -f Dockerfile ]; then
+          sed -i 's/esp32s3-devkit-c/esp32-s3-devkit/g' Dockerfile
+          sed -i 's/odroid-go/esp32-s3-devkit/g' Dockerfile
+        fi
 
     - name: Set up Docker Buildx
       uses: docker/setup-buildx-action@v3
@@ -46,13 +49,13 @@ jobs:
         cache-to: type=gha,mode=max
         load: true
 
-    # Poprawione wyciąganie plików .bin/.img zamiast .fw
+    # Wyciąganie skompilowanych plików binarnych (.bin i .img)
     - name: Extract binaries from docker image
       run: |
         mkdir -p build
-        docker run --rm -v $(pwd)/build:/build retro-go:latest sh -c "cp /app/build/*.bin /build/ 2>/dev/null || cp /app/build/*.img /build/ 2>/dev/null || cp /app/*.bin /build/ 2>/dev/null || cp -r /app/build/* /build/"
+        docker run --rm -v $(pwd)/build:/build retro-go:latest sh -c "cp -r /app/build/* /build/ 2>/dev/null || cp /app/*.bin /build/ 2>/dev/null || cp /app/*.img /build/ 2>/dev/null"
 
-    # Zmiana ścieżki na cały folder build/, aby pobrać pliki instalacyjne dla S3
+    # Wrzucenie gotowej paczki do pobrania
     - name: Upload artifacts
       uses: actions/upload-artifact@v4
       with:
